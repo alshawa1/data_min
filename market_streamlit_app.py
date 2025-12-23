@@ -36,17 +36,21 @@ st.title("🛒 Market Segmentation & Analysis")
 st.write("### Using K-Means Clustering for Customer Segmentation")
 
 # --- DATA LOADING ---
-def load_data():
     import os
     # Loading the dataset from the local directory
     # Use absolute path relative to this script to avoid CWD issues
-    file_path = os.path.join(os.path.dirname(__file__), 'online_retail_II.csv')
+    # We use a ZIP file now because the raw CSV is too big for GitHub web upload
+    file_path = os.path.join(os.path.dirname(__file__), 'online_retail_II.zip')
     
     try:
-        df = pd.read_csv(file_path, encoding='ISO-8859-1')
+        # Pandas can read directly from zip if it contains a single CSV
+        df = pd.read_csv(file_path, encoding='ISO-8859-1', compression='zip')
         return df
     except FileNotFoundError:
-        st.error(f"File not found at {file_path}. Please ensure 'online_retail_II.csv' is uploaded to the repository in the same folder as this script.")
+        st.error(f"File not found at {file_path}. Please ensure 'online_retail_II.zip' is uploaded.")
+        return None
+    except Exception as e:
+        st.error(f"Error loading data: {e}")
         return None
 
 df = load_data()
