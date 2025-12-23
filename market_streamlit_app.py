@@ -36,32 +36,17 @@ st.title("🛒 Market Segmentation & Analysis")
 st.write("### Using K-Means Clustering for Customer Segmentation")
 
 # --- DATA LOADING ---
-@st.cache_data
 def load_data():
     import os
     # Loading the dataset from the local directory
     # Use absolute path relative to this script to avoid CWD issues
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(script_dir, 'online_retail_II.csv')
+    file_path = os.path.join(os.path.dirname(__file__), 'online_retail_II.csv')
     
-    if not os.path.exists(file_path):
-        st.error(f"❌ File not found at: {file_path}")
-        st.warning("Debugging Information:")
-        st.write(f"**Script Directory:** `{script_dir}`")
-        st.write(f"**Current Working Directory:** `{os.getcwd()}`")
-        st.write("**Files in Script Directory:**")
-        try:
-            files = os.listdir(script_dir)
-            st.code("\n".join(files))
-        except Exception as e:
-            st.error(f"Could not list files: {e}")
-        return None
-
     try:
         df = pd.read_csv(file_path, encoding='ISO-8859-1')
         return df
-    except Exception as e:
-        st.error(f"Error reading CSV: {e}")
+    except FileNotFoundError:
+        st.error(f"File not found at {file_path}. Please ensure 'online_retail_II.csv' is uploaded to the repository in the same folder as this script.")
         return None
 
 df = load_data()
