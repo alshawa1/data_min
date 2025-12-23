@@ -186,28 +186,32 @@ if df is not None:
     # Data Prep for Market Basket
     # Filter by Country for performance and relevance
     countries = df['Country'].unique()
-    selected_country = st.selectbox("Select Country for Analysis (filtering allows for faster processing)", countries, index=list(countries).index('United Kingdom') if 'United Kingdom' in countries else 0)
+    selected_country = st.selectbox("Select Country for Analysis", countries, index=list(countries).index('United Kingdom') if 'United Kingdom' in countries else 0)
     
-    basket = (df[df['Country'] == selected_country]
-              .groupby(['InvoiceNo', 'Description'])['Quantity']
-              .sum().unstack().reset_index().fillna(0)
-              .set_index('InvoiceNo'))
-
-    # One-hot encoding
-    def encode_units(x):
-        return 1 if x >= 1 else 0
-
-    basket_encoded = basket.applymap(encode_units)
+    # ONE-HOT ENCODING (Optimized)
+    # Group by InvoiceNo and Description, sum quantity
+    basket_df = df[df['Country'] == selected_country]
     
+    # To save memory, we can limit to top 500 selling products if the dataset is too huge
+    # But first let's try just optimizing the pivot
+    basket = (basket_df
+          .groupby(['InvoiceNo', 'Description'])['Quantity']
+          .sum().unstack().fillna(0))
+
+    # Convert to boolean directly to save massive amounts of memory compared to int64/float
+    basket_encoded = basket.apply(lambda x: x > 0)
+
     # Apriori
     try:
         from mlxtend.frequent_patterns import apriori, association_rules
         
-        st.write(f"Processing {basket_encoded.shape[0]} transactions for {selected_country}...")
+        st.write(f"Processing {basket_encoded.shape[0]} transactions and {basket_encoded.shape[1]} products for {selected_country}...")
         
-        min_support = st.slider("Minimum Support (Frequency of itemset)", 0.01, 0.5, 0.02, 0.01)
+        # Increase default min_support to 0.03 to be safer on memory
+        min_support = st.slider("Minimum Support (Frequency of itemset)", 0.01, 0.3, 0.03, 0.01)
         
-        # Calculate frequent itemsets
+        # Calculate frequent itemsets with low_memory=True (if available in newer versions) or just standard
+        # usage of boolean df helps a lot
         frequent_itemsets = apriori(basket_encoded, min_support=min_support, use_colnames=True)
         
         if not frequent_itemsets.empty:
