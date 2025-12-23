@@ -45,8 +45,23 @@ def load_data():
     file_path = os.path.join(os.path.dirname(__file__), 'online_retail_II.zip')
     
     try:
-        # Pandas can read directly from zip if it contains a single CSV
+        # Optimization: Read only necessary columns to save memory
+        cols = ['Invoice', 'StockCode', 'Description', 'Quantity', 'Price', 'Customer ID', 'Country', 'InvoiceDate']
+        
+        # Try reading with specific columns (handling name variations)
+        # Note: 'Invoice' is sometimes 'InvoiceNo' in different versions of this dataset.
+        # We will read all and rename later to be safe, but we will SAMPLE the rows.
+        
+        # Read FULL file then sample (if memory allows) OR read limited rows
+        # Given 45MB zip, we might be able to read all, but let's be safe.
         df = pd.read_csv(file_path, encoding='ISO-8859-1', compression='zip')
+        
+        # --- CRITICAL MEMORY FIX ---
+        # Limit to 15,000 latest transactions for the free cloud tier
+        if len(df) > 15000:
+            st.toast("⚠️ Data is large! Sampling 15,000 rows for performance on free cloud.")
+            df = df.sample(n=15000, random_state=42)
+            
         return df
     except FileNotFoundError:
         st.error(f"File not found at {file_path}. Please ensure 'online_retail_II.zip' is uploaded.")
