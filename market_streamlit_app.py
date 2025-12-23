@@ -188,58 +188,66 @@ if df is not None:
     countries = df['Country'].unique()
     selected_country = st.selectbox("Select Country for Analysis", countries, index=list(countries).index('United Kingdom') if 'United Kingdom' in countries else 0)
     
-    # ONE-HOT ENCODING (Optimized)
-    # Group by InvoiceNo and Description, sum quantity
-    basket_df = df[df['Country'] == selected_country]
-    
-    # To save memory, we can limit to top 500 selling products if the dataset is too huge
-    # But first let's try just optimizing the pivot
-    basket = (basket_df
-          .groupby(['InvoiceNo', 'Description'])['Quantity']
-          .sum().unstack().fillna(0))
+    st.info("⚠️ Note: optimizing for performance. Analyzing top 150 most frequent items only.")
 
-    # Convert to boolean directly to save massive amounts of memory compared to int64/float
-    basket_encoded = basket.apply(lambda x: x > 0)
-
-    # Apriori
     try:
+        # ONE-HOT ENCODING (Optimized)
+        basket_subset = df[df['Country'] == selected_country]
+        
+        # 1. Aggressively limit to top 150 items by quantity to prevent OOM
+        top_items = basket_subset.groupby('Description')['Quantity'].sum().nlargest(150).index
+        basket_subset = basket_subset[basket_subset['Description'].isin(top_items)]
+
+        # 2. Optimized Pivot
+        basket = (basket_subset
+              .groupby(['InvoiceNo', 'Description'])['Quantity']
+              .sum().unstack().fillna(0))
+
+        # 3. Convert to boolean
+        basket_encoded = basket.apply(lambda x: x > 0)
+
+        # Apriori
         from mlxtend.frequent_patterns import apriori, association_rules
         
-        st.write(f"Processing {basket_encoded.shape[0]} transactions and {basket_encoded.shape[1]} products for {selected_country}...")
+        st.write(f"Processing {basket_encoded.shape[0]} transactions and {basket_encoded.shape[1]} items...")
         
-        # Increase default min_support to 0.03 to be safer on memory
-        min_support = st.slider("Minimum Support (Frequency of itemset)", 0.01, 0.3, 0.03, 0.01)
+        # Increase default min_support
+        min_support = st.slider("Minimum Support", 0.01, 0.2, 0.02, 0.01)
         
-        # Calculate frequent itemsets with low_memory=True (if available in newer versions) or just standard
-        # usage of boolean df helps a lot
         frequent_itemsets = apriori(basket_encoded, min_support=min_support, use_colnames=True)
         
         if not frequent_itemsets.empty:
             # Generate rules
-            min_threshold = st.slider("Minimum Lift (Strength of association)", 1.0, 10.0, 1.0, 0.1)
-            # Remove infinity values to prevent errors
+            min_threshold = st.slider("Minimum Lift", 1.0, 10.0, 1.0, 0.1)
             rules = association_rules(frequent_itemsets, metric="lift", min_threshold=min_threshold)
             rules = rules.replace([np.inf, -np.inf], np.nan).dropna()
             
             if not rules.empty:
-                # Convert frozensets to strings for display to avoid ArrowInvalid error
-                rules['antecedents'] = rules['antecedents'].apply(lambda x: ', '.join(list(x)))
-                rules['consequents'] = rules['consequents'].apply(lambda x: ', '.join(list(x)))
-                
                 st.subheader("🔗 Top Association Rules")
-                st.dataframe(rules[['antecedents', 'consequents', 'support', 'confidence', 'lift']].sort_values(by='lift', ascending=False).head(10))
+                
+                # Make a copy for display to strictly avoid breaking the logic below
+                rules_display = rules.copy()
+                rules_display['antecedents'] = rules_display['antecedents'].apply(lambda x: ', '.join(list(x)))
+                rules_display['consequents'] = rules_display['consequents'].apply(lambda x: ', '.join(list(x)))
+                
+                st.dataframe(rules_display[['antecedents', 'consequents', 'support', 'confidence', 'lift']].sort_values(by='lift', ascending=False).head(10))
                 
                 # Product Recommender
                 st.subheader("💡 Product Recommender")
                 all_products = list(basket_encoded.columns)
-                selected_product = st.selectbox("Select a Product to see recommendations:", all_products)
+                selected_product = st.selectbox("Select a Product:", all_products)
                 
-                # Find rules where selected product is in antecedents
+                # Logic uses the original 'rules' with frozensets (correct and robust)
                 recommendations = rules[rules['antecedents'].apply(lambda x: selected_product in x)]
                 
                 if not recommendations.empty:
                     st.write(f"**If a customer buys '{selected_product}', they are likely to buy:**")
-                    st.table(recommendations[['consequents', 'confidence', 'lift']].sort_values(by='lift', ascending=False).head(5))
+                    
+                    # Transform for display
+                    recs_display = recommendations.copy()
+                    recs_display['consequents'] = recs_display['consequents'].apply(lambda x: ', '.join(list(x)))
+                    
+                    st.table(recs_display[['consequents', 'confidence', 'lift']].sort_values(by='lift', ascending=False).head(5))
                 else:
                     st.info(f"No strong recommendations found for {selected_product} with current thresholds.")
             else:
@@ -247,6 +255,8 @@ if df is not None:
         else:
             st.warning("No frequent itemsets found. Try lowering the Minimum Support.")
             
-    except ImportError:
-        st.error("Please install mlxtend to use Market Basket Analysis: `pip install mlxtend`")
+    except MemoryError:
+        st.error("❌ Out of Memory! The dataset is too large for the free cloud tier. Try selecting a smaller country or increasing Minimum Support.")
+    except Exception as e:
+        st.error(f"❌ An error occurred: {e}")
 
