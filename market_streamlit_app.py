@@ -37,6 +37,7 @@ st.write("### Using K-Means Clustering for Customer Segmentation")
 
 # --- DATA LOADING ---
 @st.cache_data
+def load_data():
     import os
     # Loading the dataset from the local directory
     # Use absolute path relative to this script to avoid CWD issues
