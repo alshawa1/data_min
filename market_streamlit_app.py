@@ -159,14 +159,14 @@ if df is not None:
         c1, c2 = st.columns(2)
         with c1:
             fig = px.scatter(rfm, x='Recency', y='Monetary', color='Cluster', title='Recency vs Monetary', log_x=True, log_y=True)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig)
         with c2:
             fig = px.scatter(rfm, x='Frequency', y='Monetary', color='Cluster', title='Frequency vs Monetary', log_x=True, log_y=True)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig)
             
     with tab2:
         fig_3d = px.scatter_3d(rfm, x='Recency', y='Frequency', z='Monetary', color='Cluster', opacity=0.7, log_x=True, log_y=True, log_z=True)
-        st.plotly_chart(fig_3d, use_container_width=True)
+        st.plotly_chart(fig_3d)
     
     # Download
     csv = rfm.to_csv(index=False).encode('utf-8')
@@ -217,9 +217,15 @@ if df is not None:
         if not frequent_itemsets.empty:
             # Generate rules
             min_threshold = st.slider("Minimum Lift (Strength of association)", 1.0, 10.0, 1.0, 0.1)
+            # Remove infinity values to prevent errors
             rules = association_rules(frequent_itemsets, metric="lift", min_threshold=min_threshold)
+            rules = rules.replace([np.inf, -np.inf], np.nan).dropna()
             
             if not rules.empty:
+                # Convert frozensets to strings for display to avoid ArrowInvalid error
+                rules['antecedents'] = rules['antecedents'].apply(lambda x: ', '.join(list(x)))
+                rules['consequents'] = rules['consequents'].apply(lambda x: ', '.join(list(x)))
+                
                 st.subheader("🔗 Top Association Rules")
                 st.dataframe(rules[['antecedents', 'consequents', 'support', 'confidence', 'lift']].sort_values(by='lift', ascending=False).head(10))
                 
