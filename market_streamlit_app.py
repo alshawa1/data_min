@@ -37,14 +37,16 @@ st.write("### Using K-Means Clustering for Customer Segmentation")
 
 # --- DATA LOADING ---
 @st.cache_data
-def load_data():
+    import os
     # Loading the dataset from the local directory
-    file_path = 'online_retail_II.csv'
+    # Use absolute path relative to this script to avoid CWD issues
+    file_path = os.path.join(os.path.dirname(__file__), 'online_retail_II.csv')
+    
     try:
         df = pd.read_csv(file_path, encoding='ISO-8859-1')
         return df
     except FileNotFoundError:
-        st.error(f"File not found at {file_path}. Please ensure the file exists in the same directory.")
+        st.error(f"File not found at {file_path}. Please ensure 'online_retail_II.csv' is uploaded to the repository in the same folder as this script.")
         return None
 
 df = load_data()
